@@ -1,7 +1,12 @@
-from cmapPy.pandasGEXpress import parse
+
+from cmapPy.pandasGEXpress.parse import *
 import numpy as np
 import csv
+import os
+import sys
 import Helpers.remove_correlated_features as rcf
+#sys.path.append(os.path.dirname(os.path.realpath(__file__)) + '/Helpers')
+#import remove_correlated_features as rcf
 import datetime
 
 # local vars

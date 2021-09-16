@@ -68,78 +68,86 @@ def do_validation(data, og_labels, model_file_prefix):
     #d_new_class_weights = {np.array([1.,0.]):0.557906325060048,  np.array([0.,1.]): 4.817317663325268}
     #d_new_class_weights = dict((d_new_class_weights[key], value) for (key, value) in d_class_weights.items())
 
-    kf = KFold(n_splits=n_splits, shuffle=True)
-    sum_auc = 0
-    count = 0
-    sum_prec = 0
-    sum_fscore = 0
-    sum_ef = 0
-    cutoffs = []
-    for train_indexes, test_indexes in kf.split(data):
-        count += 1
-        print("TRAIN:", train_indexes, "TEST:", test_indexes)
+    #kf = KFold(n_splits=n_splits, shuffle=True)
+    # sum_auc = 0
+    # count = 0
+    # sum_prec = 0
+    # sum_fscore = 0
+    # sum_ef = 0
+    # cutoffs = []
+    # for train_indexes, test_indexes in kf.split(data):
+    #     count += 1
+    #     print("TRAIN:", train_indexes, "TEST:", test_indexes)
 
-        # take half of the test data as validation
-        X_train = data[train_indexes]
-        Y_train = labels[train_indexes]
-        val_indexes, test_indexes = train_test_split(test_indexes, train_size=0.5, test_size=0.5, shuffle=True)
-        X_val = data[val_indexes]
-        Y_val = labels[val_indexes]
-        X_test = data[test_indexes]
-        Y_test = labels[test_indexes]
+    #     # take half of the test data as validation
+    #     X_train = data[train_indexes]
+    #     Y_train = labels[train_indexes]
+    all_data = np.arange(len(data))
+    seed = 27
+    train_idx, val_idx = train_test_split (all_data, train_size=0.8, test_size=0.2, shuffle=True,random_state=seed)
+    X_train = data[train_idx]
+    Y_train = labels[train_idx]
+    X_val = data[val_idx]
+    Y_val = labels[val_idx]
 
-        model = get_model(nb_classes, neuron_count)
+        # val_indexes, test_indexes = train_test_split(test_indexes, train_size=0.5, test_size=0.5, shuffle=True)
+    # X_val = data[val_indexes]
+    # Y_val = labels[val_indexes]
+    # X_test = data[test_indexes]
+    # Y_test = labels[test_indexes]
 
-        # train the model
-        history = History()
-        early_stopping = EarlyStopping(monitor='val_loss', min_delta=0, patience=5, verbose=1, mode='auto')
-        out_epoch = NEpochLogger(display=5)
-        model.fit(X_train, Y_train, batch_size=batch_size, epochs=nb_epoch,
-                  verbose=0, validation_data=(X_val, Y_val), callbacks=[history, early_stopping, out_epoch],
-                  class_weight=d_class_weights)
-        save_model(model, model_file_prefix, count)
+    model = get_model(nb_classes, neuron_count)
 
-        # get results and report
-        y_pred_train = model.predict(X_train)
-        y_pred_test = model.predict(X_test)
+    # train the model
+    history = History()
+    early_stopping = EarlyStopping(monitor='val_loss', min_delta=0, patience=20, verbose=1, mode='auto')
+    out_epoch = NEpochLogger(display=5)
+    model.fit(X_train, Y_train, batch_size=batch_size, epochs=nb_epoch,
+                verbose=0, validation_data=(X_val, Y_val), callbacks=[history, early_stopping, out_epoch],
+                class_weight=d_class_weights)
+    save_model(model, model_file_prefix,seed)
 
-        # report accuracy
-        y_pred = np.argmax(y_pred_test, axis=1)
-        y_true = np.argmax(Y_test, axis=1)
-        report = metrics.classification_report(y_true, y_pred)
-        print("Test Report", report)
+#     # get results and report
+#     y_pred_train = model.predict(X_train)
+#     y_pred_test = model.predict(X_test)
 
-        # report auc
-        train_stats = all_stats(Y_train[:, 1], y_pred_train[:, 1])
-        test_stats = all_stats(Y_test[:, 1], y_pred_test[:, 1])
-        print('All stats columns | AUC | Recall | Specificity | Number of Samples | Precision | Max F Cutoff | Max F score')
-        print('All stats train:', ['{:6.3f}'.format(val) for val in train_stats])
-        print('All stats test:', ['{:6.3f}'.format(val) for val in test_stats])
+#     # report accuracy
+#     y_pred = np.argmax(y_pred_test, axis=1)
+#     y_true = np.argmax(Y_test, axis=1)
+#     report = metrics.classification_report(y_true, y_pred)
+#     print("Test Report", report)
 
-        # get enrichment factor
-        precision = float(test_stats[4])
-        tokens = report.split()
-        support = int(tokens[13])
-        total = (float(tokens[20]))
-        ef = precision / (support/total)
+#     # report auc
+#     train_stats = all_stats(Y_train[:, 1], y_pred_train[:, 1])
+#     test_stats = all_stats(Y_test[:, 1], y_pred_test[:, 1])
+#     print('All stats columns | AUC | Recall | Specificity | Number of Samples | Precision | Max F Cutoff | Max F score')
+#     print('All stats train:', ['{:6.3f}'.format(val) for val in train_stats])
+#     print('All stats test:', ['{:6.3f}'.format(val) for val in test_stats])
 
-        cutoffs.append(float(test_stats[5]))
+#     # get enrichment factor
+#     precision = float(test_stats[4])
+#     tokens = report.split()
+#     support = int(tokens[13])
+#     total = (float(tokens[20]))
+#     ef = precision / (support/total)
 
-        # get average
-        sum_auc += test_stats[0]
-        sum_prec += test_stats[4]
-        sum_fscore += test_stats[6]
-        sum_ef += ef
+#     cutoffs.append(float(test_stats[5]))
 
-        print("running kfold auc", count, sum_auc / count,
-              'prec', sum_prec / count,
-              'fscore', sum_fscore / count,
-              'enrichment', sum_ef / count)
-    np.savez(model_file_prefix + '_cutoffs', np.asarray(cutoffs))
+#     # get average
+#     sum_auc += test_stats[0]
+#     sum_prec += test_stats[4]
+#     sum_fscore += test_stats[6]
+#     sum_ef += ef
+
+#     print("running kfold auc", count, sum_auc / count,
+#             'prec', sum_prec / count,
+#             'fscore', sum_fscore / count,
+#             'enrichment', sum_ef / count)
+# np.savez(model_file_prefix + '_cutoffs', np.asarray(cutoffs))
 
 def load_and_validate():
     # target_cell_names = ['VCAP', 'A549', 'A375', 'PC3', 'MCF7', 'HT29', 'LNCAP']
-    target_cell_names = ['LNCAP']  # choose the cell line(s) to do x10
+    target_cell_names = ['DCPcells']  # choose the cell line(s) to do x10
     #target_cell_names = ['HT29']
     load_data_folder_path = "TrainData/"
     save_models_folder_path = "SavedModels/"

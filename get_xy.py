@@ -11,7 +11,7 @@ gene_count_data_limit = 978
 target_cell_names = ['HT29']
 test_blind = True
 save_xy_path = "TrainData/"
-LINCS_data_path = "/data/datasets/gwoo/L1000/LDS-1191/Data/"  # set this path to your LINCS gctx file
+LINCS_data_path = "/raid/home/yoyowu/DeepCOP/Data/"  # set this path to your LINCS gctx file
 if LINCS_data_path == "":
     print("You need to set the LINCS data path")
     sys.exit()
@@ -65,7 +65,9 @@ def get_class_vote(pert_list, bottom_threshold, top_threshold):
 # get the dictionaries
 print(datetime.datetime.now(), "Loading drug and gene features")
 drug_features_dict = get_feature_dict('Data/phase1_compounds_morgan_2048.csv')
+# drug shape ( 203371,2048)
 gene_features_dict = get_feature_dict('Data/go_fingerprints.csv')
+# gene shape ( 978, 1107)
 cell_name_to_id_dict = get_feature_dict('Data/Phase1_Cell_Line_Metadata.txt', '\t', 2)
 experiments_dose_dict = get_feature_dict(LINCS_data_path + 'GSE92742_Broad_LINCS_sig_info.txt', '\t', 0)
 gene_id_dict = get_gene_id_dict()
@@ -77,9 +79,11 @@ for gene in gene_id_dict:
 print("Loading gene expressions from gctx")
 level_5_gctoo = load_gene_expression_data(LINCS_data_path + "GSE92742_Broad_LINCS_Level5_COMPZ.MODZ_n473647x12328.gctx",
                                           lm_gene_entrez_ids)
+                                          
 length = len(level_5_gctoo.col_metadata_df.index)
+#print(level_5_gctoo.data_df.head())
 # length = 10000
-
+# 473647 
 for target_cell_name in target_cell_names:
     target_cell_id = cell_name_to_id_dict[target_cell_name][0]
 
@@ -95,16 +99,23 @@ for target_cell_name in target_cell_names:
         printProgressBar(i, length, prefix='Load experiments progress')
         col_name = level_5_gctoo.col_metadata_df.index[i]
         column = level_5_gctoo.data_df[col_name]
+        # column is 978 gex associate with different experiments 
+
 
         # parse the time
         start = col_name.rfind("_")
+        # highest index of the series 
         end = find_nth(col_name, ":", 1)
         exposure_time = col_name[start + 1:end]
         if exposure_time != "24H":  # column counts: 6h 102282, 24h 118597, 48h 1453, 144h 18487, 3h 612
             continue
 
+        # keep 24 H only 
+
+
         # get drug features
-        col_name_key = col_name[2:-1]
+        #col_name_key = col_name[2:-1]
+        col_name_key = col_name
         if col_name_key not in experiments_dose_dict:
             continue
         experiment_data = experiments_dose_dict[col_name_key]
@@ -133,7 +144,7 @@ for target_cell_name in target_cell_names:
         if cell_name not in cell_name_to_id_dict:
             continue
         cell_id = cell_name_to_id_dict[cell_name][0]
-
+        # lcl id 
         for gene_id in lm_gene_entrez_ids:
             gene_symbol = gene_id_dict[gene_id]
 
@@ -151,6 +162,7 @@ for target_cell_name in target_cell_names:
                 cell_drugs_counts += 1
             cell_Y[repeat_key].append(pert)
 
+# 1372 *978??? what is  1372, must be unique drug 
     elapsed_time = time.time() - start_time
     print(datetime.datetime.now(), "Time to load data:", elapsed_time)
 
@@ -166,6 +178,7 @@ for target_cell_name in target_cell_names:
         prog_ctr = 0
         for gene_id in lm_gene_entrez_ids:
             row = level_5_gctoo.data_df.loc[gene_id, :].values
+            # row: gex values of each expeirment ( 473647)
             prog_ctr += 1
             printProgressBar(prog_ctr, gene_count_data_limit, prefix='Storing percentile cutoffs')
             gene_cutoffs_down[gene_id] = np.percentile(row, percentile_down)
@@ -187,6 +200,9 @@ for target_cell_name in target_cell_names:
             prog_ctr += 1
             printProgressBar(prog_ctr, gene_count_data_limit, prefix='Marking positive pertubations')
             gene_locations = np.where(npY_gene_ids == gene_id)
+
+            # gene locations : 1372 
+            # for each landmark gene, locate the experiment gene 
             class_cut_off_down = gene_cutoffs_down[gene_id]
             class_cut_off_up = gene_cutoffs_up[gene_id]
 
@@ -216,5 +232,5 @@ for target_cell_name in target_cell_names:
             model_file_prefix = save_xy_path + target_cell_name + '_' + direction + '_' + str(percentile_down) + 'p'
             save_file = model_file_prefix + "_Y_class"
             print("saved", save_file)
-            npY = npY_class_up if direction == "up" else npY_class_down
+            npY = npY_class_up if direction == "Up" else npY_class_down
             np.savez(save_file, npY)
